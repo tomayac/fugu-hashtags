@@ -1,42 +1,35 @@
-const express = require("express");
-const app = express();
-const request = require("request");
+const fastify = require('fastify')({
+  logger: true
+});
+const fetch = require('node-fetch');
 const { DOMParser, XMLSerializer } = require("xmldom");
 
 const getHashtags = async () => {
   return new Promise((resolve, reject) => {
-    request.get(
-      "https://web.dev/tags/capabilities/feed.xml",
-      (error, response, body) => {
-        if (error || response.statusCode !== 200) {
-          return reject();
-        }
-        const re = /https:\/\/twitter\.com\/search\?q=.*?&amp;+/g;
-        const hashtags = [];
-        let match;
-        while ((match = re.exec(body)) !== null) {
-          hashtags.push(
-            match[0]
-              .replace("https://twitter.com/search?q=%23", "")
-              .replace("&amp;", "")
-          );
-        }
-        return resolve(hashtags);
+    fetch(
+      "https://web.dev/tags/capabilities/feed.xml"
+    )
+    .then(response => response.text())
+    .then(body => {
+      const re = /https:\/\/twitter\.com\/search\?q=.*?&amp;+/g;
+      const hashtags = [];
+      let match;
+      while ((match = re.exec(body)) !== null) {
+        hashtags.push(
+          match[0]
+            .replace("https://twitter.com/search?q=%23", "")
+            .replace("&amp;", "")
+        );
       }
-    );
+      resolve(hashtags);
+    })
+    .catch(err => reject(err));
   });
 };
 
-app.get("/", async (req, res) => {
+fastify.get("/", async (req, res) => {
   try {
     const hashtags = await getHashtags();
-
-    res.set("Content-Type", "text/xml");
-    console.log(
-      `<hashtags>\n${hashtags.forEach(hashtag => {
-        return `  <hashtag>${hashtag}</hashtag>\n`;
-      })}</hashtags>\n`
-    );
     res.send(
       `<hashtags>\n${hashtags
         .map(hashtag => {
@@ -44,24 +37,23 @@ app.get("/", async (req, res) => {
         })
         .join("")}</hashtags>\n`
     );
-  } catch {
+  } catch (err) {
+    console.error(err.name, err.message);
     res.status = 500;
     res.send("Internal server error");
   }
 });
 
-app.get("/rss", async (req, res) => {
+fastify.get("/rss", async (req, res) => {
   try {
     const hashtags = await getHashtags();
     const promises = hashtags.map(hashtag => {
       const url = `https://tomayac.com/rss/searchrss.php?q=%23${hashtag}&rt=recent&c=200`;
       return new Promise((resolve, reject) => {
-        request.get(url, (err, response, body) => {
-          if (err || response.statusCode !== 200) {
-            reject(err);
-          }
-          resolve(body);
-        });
+        fetch(url)
+        .then(response => response.text())
+        .then(body => resolve(body))
+        .catch(err => reject(err));
       });
     });
     const [first, ...rest] = await Promise.all(promises);
@@ -123,7 +115,7 @@ app.get("/rss", async (req, res) => {
   }
 });
 
-app.get("/follow", async (req, res) => {
+fastify.get("/follow", async (req, res) => {
   res.send(`
 <!doctype html>
 <html lang="en">
@@ -137,11 +129,11 @@ app.get("/follow", async (req, res) => {
 <body>
   This page has an <a href="/rss">RSS feed</a>.
 </body>
-</html>  
+</html>
   `)
 });
 
-// listen for requests :)
-const listener = app.listen(process.env.PORT, () => {
-  console.log("Your app is listening on port " + listener.address().port);
+fastify.listen(process.env.PORT, (err, address) => {
+  if (err) throw err
+  console.log(`Server is now listening on ${address}`);
 });
