@@ -1,7 +1,7 @@
 {
   "name": "fugu-hashtags",
   "version": "0.0.1",
-  "description": "",
+  "description": "Project Fugu hashtags",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
@@ -10,9 +10,6 @@
     "express": "^4.17.1",
     "request": "^2.88.2",
     "xmldom": "^0.6.0"
-  },
-  "engines": {
-    "node": "12.x"
   },
   "repository": {
     "url": "git+https://github.com/tomayac/fugu-hashtags.git"
